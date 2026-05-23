@@ -10,6 +10,16 @@ from unittest.mock import patch, MagicMock
 import app
 
 
+# Clear Streamlit cache before every test so mocks work reliably
+def setup_function():
+    try:
+        app.fetch_kp_index.clear()
+        app.fetch_nfip_claims_state_summary.clear()
+        app.fetch_fema_disaster_declarations.clear()
+    except Exception:
+        pass
+
+
 class TestFetchKpIndex:
     """Tests for the Kp index fetcher (handles both old and new NOAA API formats)."""
 
