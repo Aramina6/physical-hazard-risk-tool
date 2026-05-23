@@ -280,6 +280,13 @@ with tab_space:
     st.markdown("**Space Weather & Near-Earth Objects** — focused insurance risk view for the United States")
     st.caption("Live geomagnetic activity (NOAA SWPC) + upcoming close approaches (NASA/JPL CNEOS).")
 
+    st.markdown("""
+    **Business Context**
+    - **High Kp / G4–G5 periods**: Increased risk of Geomagnetically Induced Currents (GIC) affecting power utilities → potential claims on property, business interruption, and contingent BI policies.
+    - **Satellite operators**: Elevated solar activity increases drag and charging risk for large LEO constellations (Starlink, etc.) — directly relevant to space insurance and parametric products.
+    - **NEO close approaches**: While impact probability is low, they inform tail-risk modeling and regulatory stress scenarios used by large insurers and reinsurers.
+    """)
+
     kp_df = fetch_kp_index()
 
     # SAFE DEFAULTS - prevents NameError when Kp fetch fails
@@ -405,6 +412,13 @@ with tab_ins:
     - Banks and investors assess physical risk in mortgage and real estate portfolios.
     - Regulators monitor systemic exposure (e.g., concentration of losses in Florida, Texas, Louisiana).
     - Climate scientists use loss data to ground-truth vulnerability functions.
+
+    **Key Business Questions This Dashboard Helps Answer**
+    - Which states show the highest recent flood loss development (useful for reinsurance pricing and accumulation control)?
+    - Are we seeing unusual claims activity in states that just received major FEMA declarations?
+    - How concentrated are recent NFIP losses compared to our own portfolio exposure by state?
+    - Which states have both high recent declarations **and** high claims payouts (potential early warning for emerging hotspots)?
+    - How do current loss trends compare to the multi-year baseline (important for IBNR and reserve setting)?
     """)
 
     st.caption("Powered by FEMA OpenFEMA (NFIP Redacted Claims + Disaster Declarations) — the largest public U.S. insured loss dataset.")
