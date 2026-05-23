@@ -10,14 +10,16 @@ from unittest.mock import patch, MagicMock
 import app
 
 
-# Clear Streamlit cache before every test so mocks work reliably
-def setup_function():
+@pytest.fixture(autouse=True)
+def clear_streamlit_caches():
+    """Ensure @st.cache_data functions don't return stale real data during tests."""
     try:
         app.fetch_kp_index.clear()
         app.fetch_nfip_claims_state_summary.clear()
         app.fetch_fema_disaster_declarations.clear()
     except Exception:
         pass
+    yield
 
 
 class TestFetchKpIndex:
@@ -25,6 +27,7 @@ class TestFetchKpIndex:
 
     def test_returns_empty_on_api_failure(self):
         with patch("app.requests.get") as mock_get:
+            app.fetch_kp_index.clear()  # ensure no cached real response
             mock_response = MagicMock()
             mock_response.json.return_value = []
             mock_get.return_value = mock_response
@@ -38,6 +41,7 @@ class TestFetchKpIndex:
             {"time_tag": "2026-05-01T03:00:00", "Kp": 4.2, "a_running": 15, "station_count": 8},
         ]
         with patch("app.requests.get") as mock_get:
+            app.fetch_kp_index.clear()
             mock_get.return_value.json.return_value = fake_data
             df = app.fetch_kp_index()
             assert not df.empty
@@ -73,6 +77,7 @@ class TestFetchNifpClaims:
             },
         ]
         with patch("app.requests.get") as mock_get:
+            app.fetch_nfip_claims_state_summary.clear()
             mock_get.return_value.json.return_value = {"FimaNfipClaims": fake_claims}
             summary = app.fetch_nfip_claims_state_summary(years_back=2)
 
