@@ -227,6 +227,8 @@ st.markdown("Real-time data from **USGS**, **NOAA NHC**, **JTWC**, **NOAA SWPC**
 
 tab_eq, tab_tc, tab_space, tab_ins = st.tabs(["Earthquakes", "Tropical Cyclones", "Space Hazards (USA)", "Insurance Analytics (US)"])
 
+st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC – NASA/JPL – FEMA OpenFEMA")
+
 # --- Earthquakes ---
 with tab_eq:
     min_mag = st.slider(
@@ -420,8 +422,6 @@ with tab_space:
 *Educational synthesis only — not actuarial advice.*
 """)
 
-    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC – NASA/JPL – FEMA OpenFEMA")
-
 # --- Insurance Analytics (US) ---
 with tab_ins:
     st.subheader("US Insurance & Disaster Economics")
@@ -509,7 +509,5 @@ with tab_ins:
 
         **Recommended next steps for serious analysis**: Combine with commercial CAT models, internal exposure data, and vulnerability curves.
         """)
-
-    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC – NASA/JPL – FEMA OpenFEMA")
 
 st.caption("Multi-Hazard Monitor • Open data only • Educational use")
