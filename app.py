@@ -429,7 +429,7 @@ with tab_space:
 
 # --- Insurance Analytics (US) ---
 with tab_ins:
-    sidebar_status.info("Insurance data • FEMA OpenFEMA (NFIP)")
+    sidebar_status.empty()   # No special sidebar message for this tab
     st.subheader("US Insurance & Disaster Economics")
 
     st.markdown("""
