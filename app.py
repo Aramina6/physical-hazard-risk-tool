@@ -265,7 +265,7 @@ with tab_tc:
         "Minimum Wind Intensity",
         min_value=0.0,
         max_value=10.0,
-        value=0.0,
+        value=0.0,  # Explicitly set to zero so all cyclones are shown by default
         step=0.5,
         key="tc_min_wind",
         help="Filter tropical cyclones by estimated intensity (higher = stronger storms). 0 = show all."
