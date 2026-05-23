@@ -1,4 +1,4 @@
-# Multi-Hazard Monitor: Earthquakes • Cyclones • Space Hazards • Insurance Analytics
+# Multi-Hazard Monitor: Earthquakes, Cyclones, Space Hazards & Insurance Analytics
 
 **Real-time dashboard** tracking global earthquakes (M≥1.0), tropical cyclones, **geomagnetic activity (Kp)**, near-Earth object close approaches, and **US disaster-linked insurance data** (NFIP claims + FEMA declarations).
 
@@ -24,7 +24,7 @@ The dashboard now features **four interactive tabs** with data refreshing every 
 ### 3. Space Hazards (USA) Tab
 - **Live Geomagnetic Activity**: Current planetary Kp index + color-coded NOAA G-scale storm level (G0–G5) with recent trend chart.
 - **Upcoming Close Approaches**: List of the nearest or larger near-Earth objects expected in the next 60 days (JPL CNEOS CAD API). Shows distance in Lunar Distances (LD), absolute magnitude (H), and velocity.
-- **🇺🇸 USA Insurance Exposure Report**: Educational panel on sectors most vulnerable to space weather (power grid, satellites, aviation, pipelines) with historical benchmarks and modeled loss ranges.
+- **USA Insurance Exposure Report**: Educational panel on sectors most vulnerable to space weather (power grid, satellites, aviation, pipelines) with historical benchmarks and modeled loss ranges.
 
 ### 4. Insurance Analytics (US) Tab — *New*
 - **State-level quantitative views** powered by FEMA OpenFEMA:
@@ -79,15 +79,46 @@ After cloning, all four tabs (including the new **Insurance Analytics (US)** tab
 
 ---
 
-## Development
+## Development & Contribution
 
-- Main branch contains the stable version.
-- The `feature/space-hazards-usa-insurance` branch contains the Space Hazards tab + the new Insurance Analytics (US) starter tab using real FEMA OpenFEMA data.
+### Repository Standards
 
-Next planned work on this branch includes deeper joins between disaster declarations and NFIP claims, time-series correlations, and cross-filtering with the Space Hazards Kp data.
+This project follows **production-style engineering practices** suitable for insurance, banking, or climate-risk teams:
 
-Contributions and feedback are very welcome!
+- `SKILLS.md` — Strategic context on climate risk, financial materiality, and how insurers / banks / scientists use this data.
+- `docs/DATA_SOURCES_AND_METHODOLOGY.md` — Detailed explanation of every data source and its limitations.
+- `tests/` — Unit tests with mocking for all external data fetchers.
+- GitHub Actions CI runs the test suite on every push and pull request.
+
+### Running Locally
+
+```bash
+git clone https://github.com/Aramina6/realtime-disasters-monitoring.git
+cd realtime-disasters-monitoring
+
+python -m venv .venv
+source .venv/bin/activate   # or .venv\Scripts\Activate on Windows
+
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+### Running Tests
+
+```bash
+pip install pytest
+pytest tests/ -v
+```
+
+### Adding New Features
+
+Before adding new data sources or visualizations, please read `SKILLS.md` for context on financial materiality and how different stakeholders interpret climate risk data.
+
+When modifying data fetchers:
+- Add or update unit tests in `tests/`
+- Document limitations in `docs/`
+- Provide clear interpretation guidance in the UI
 
 ---
 
-*Disclaimer: This application is for informational and educational purposes only. Insurance loss estimates and analytics are derived from public government data sources and should not be used for underwriting, pricing, or risk transfer decisions without independent professional validation.*
+*Built with care for risk professionals who need transparent, open-data views of climate and geophysical hazards.*
