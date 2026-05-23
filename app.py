@@ -225,12 +225,11 @@ def fetch_nfip_claims_state_summary(years_back=6):
 st.title("Multi-Hazard Monitor – Earthquakes, Cyclones, Space & Insurance")
 st.markdown("Real-time data from **USGS**, **NOAA NHC**, **JTWC**, **NOAA SWPC**, **NASA/JPL CNEOS** & **FEMA OpenFEMA**")
 
-min_intensity = st.sidebar.slider("Minimum Intensity", 0.0, 10.0, 1.0, 0.5)
-
 tab_eq, tab_tc, tab_space, tab_ins = st.tabs(["Earthquakes", "Tropical Cyclones", "Space Hazards (USA)", "Insurance Analytics (US)"])
 
 # --- Earthquakes ---
 with tab_eq:
+    min_intensity = st.sidebar.slider("Minimum Magnitude", 0.0, 10.0, 1.0, 0.5, key="eq_intensity")
     df = fetch_earthquakes_month()
     if not df.empty:
         df = df[df["magnitude"] >= min_intensity]
@@ -254,6 +253,7 @@ with tab_eq:
 
 # --- Cyclones ---
 with tab_tc:
+    min_intensity = st.sidebar.slider("Minimum Intensity (Wind Scaled)", 0.0, 10.0, 1.0, 0.5, key="tc_intensity")
     df = fetch_cyclones_month()
     if not df.empty:
         df = df[df["magnitude"] >= min_intensity]
