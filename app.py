@@ -229,10 +229,10 @@ tab_eq, tab_tc, tab_space, tab_ins = st.tabs(["Earthquakes", "Tropical Cyclones"
 
 # --- Earthquakes ---
 with tab_eq:
-    min_intensity = st.sidebar.slider("Minimum Magnitude", 0.0, 10.0, 1.0, 0.5, key="eq_intensity")
+    min_mag = st.slider("Minimum Magnitude", 0.0, 10.0, 1.0, 0.5, key="eq_min_mag")
     df = fetch_earthquakes_month()
     if not df.empty:
-        df = df[df["magnitude"] >= min_intensity]
+        df = df[df["magnitude"] >= min_mag]
         col1, col2 = st.columns([2, 1])
         with col1:
             fig = px.scatter_mapbox(df, lat="lat", lon="lon", size="severity", color="magnitude",
@@ -253,10 +253,10 @@ with tab_eq:
 
 # --- Cyclones ---
 with tab_tc:
-    min_intensity = st.sidebar.slider("Minimum Intensity (Wind Scaled)", 0.0, 10.0, 1.0, 0.5, key="tc_intensity")
+    min_wind = st.slider("Minimum Wind Intensity", 0.0, 10.0, 1.0, 0.5, key="tc_min_wind")
     df = fetch_cyclones_month()
     if not df.empty:
-        df = df[df["magnitude"] >= min_intensity]
+        df = df[df["magnitude"] >= min_wind]
         col1, col2 = st.columns([2, 1])
         with col1:
             fig = px.scatter_mapbox(df, lat="lat", lon="lon", size="magnitude", color="severity",
