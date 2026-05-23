@@ -227,10 +227,13 @@ st.markdown("Real-time data from **USGS**, **NOAA NHC**, **JTWC**, **NOAA SWPC**
 
 tab_eq, tab_tc, tab_space, tab_ins = st.tabs(["Earthquakes", "Tropical Cyclones", "Space Hazards (USA)", "Insurance Analytics (US)"])
 
-st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC – NASA/JPL – FEMA OpenFEMA")
+# Single sidebar status container so we can update it per tab without duplication
+sidebar_status = st.sidebar.empty()
+sidebar_status.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC – NASA/JPL – FEMA OpenFEMA")
 
 # --- Earthquakes ---
 with tab_eq:
+    sidebar_status.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC")
     min_mag = st.slider(
         "Minimum Magnitude",
         min_value=0.0,
@@ -263,11 +266,12 @@ with tab_eq:
 
 # --- Cyclones ---
 with tab_tc:
+    sidebar_status.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC")
     min_wind = st.slider(
         "Minimum Wind Intensity",
         min_value=0.0,
         max_value=10.0,
-        value=0.0,  # Explicitly set to zero so all cyclones are shown by default
+        value=0.0,  # Default to 0 so all cyclones are shown by default
         step=0.5,
         key="tc_min_wind",
         help="Filter tropical cyclones by estimated intensity (higher = stronger storms). 0 = show all."
@@ -303,6 +307,7 @@ with tab_tc:
 
 # --- Space Hazards & USA Insurance Report ---
 with tab_space:
+    sidebar_status.info("Space weather & NEO data • NOAA SWPC + NASA/JPL CNEOS")
     st.markdown("**Space Weather & Near-Earth Objects** — focused insurance risk view for the United States")
     st.caption("Live geomagnetic activity (NOAA SWPC) + upcoming close approaches (NASA/JPL CNEOS).")
 
@@ -424,6 +429,7 @@ with tab_space:
 
 # --- Insurance Analytics (US) ---
 with tab_ins:
+    sidebar_status.info("Insurance data • FEMA OpenFEMA (NFIP)")
     st.subheader("US Insurance & Disaster Economics")
 
     st.markdown("""
