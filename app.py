@@ -229,7 +229,15 @@ tab_eq, tab_tc, tab_space, tab_ins = st.tabs(["Earthquakes", "Tropical Cyclones"
 
 # --- Earthquakes ---
 with tab_eq:
-    min_mag = st.slider("Minimum Magnitude", 0.0, 10.0, 1.0, 0.5, key="eq_min_mag")
+    min_mag = st.slider(
+        "Minimum Magnitude",
+        min_value=0.0,
+        max_value=10.0,
+        value=1.0,
+        step=0.5,
+        key="eq_min_mag",
+        help="Filter earthquakes by magnitude. Lower values show more (smaller) events."
+    )
     df = fetch_earthquakes_month()
     if not df.empty:
         df = df[df["magnitude"] >= min_mag]
@@ -253,7 +261,15 @@ with tab_eq:
 
 # --- Cyclones ---
 with tab_tc:
-    min_wind = st.slider("Minimum Wind Intensity", 0.0, 10.0, 1.0, 0.5, key="tc_min_wind")
+    min_wind = st.slider(
+        "Minimum Wind Intensity",
+        min_value=0.0,
+        max_value=10.0,
+        value=0.0,
+        step=0.5,
+        key="tc_min_wind",
+        help="Filter tropical cyclones by estimated intensity (higher = stronger storms). 0 = show all."
+    )
     df = fetch_cyclones_month()
     if not df.empty:
         df = df[df["magnitude"] >= min_wind]
