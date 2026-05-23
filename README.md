@@ -1,4 +1,4 @@
-# Multi-Hazard Monitor: Earthquakes, Cyclones, Space Hazards & Insurance Analytics
+# Physical Hazard Risk Tool
 
 **Real-time dashboard** tracking global earthquakes (M≥1.0), tropical cyclones, **geomagnetic activity (Kp)**, near-Earth object close approaches, and **US disaster-linked insurance data** (NFIP claims + FEMA declarations).
 
@@ -26,14 +26,14 @@ The dashboard now features **four interactive tabs** with data refreshing every 
 - **Upcoming Close Approaches**: List of the nearest or larger near-Earth objects expected in the next 60 days (JPL CNEOS CAD API). Shows distance in Lunar Distances (LD), absolute magnitude (H), and velocity.
 - **USA Insurance Exposure Report**: Educational panel on sectors most vulnerable to space weather (power grid, satellites, aviation, pipelines) with historical benchmarks and modeled loss ranges.
 
-### 4. Insurance Analytics (US) Tab — *New*
+### 4. Insurance Analytics (US) Tab
 - **State-level quantitative views** powered by FEMA OpenFEMA:
   - NFIP Redacted Claims (total paid, claim counts) aggregated by state and year
   - Interactive US choropleth map of NFIP payouts
   - Top states bar chart
   - KPI cards (total paid, records, highest-payout state)
   - Sample state × year data table
-- Starter version focused on recent years for performance. Includes roadmap notes for deeper correlations with disaster declarations and Space Hazards data.
+- Includes roadmap notes for deeper correlations with disaster declarations and Space Hazards data.
 
 > All insurance-related content is for educational and situational awareness purposes only.
 
@@ -42,9 +42,9 @@ The dashboard now features **four interactive tabs** with data refreshing every 
 ## Features
 
 - **Live Multi-Source Data**: Earthquakes (USGS), Cyclones (NOAA/JTWC), Space Weather (NOAA SWPC), NEOs (NASA/JPL), and Insurance/Disaster data (FEMA OpenFEMA).
-- **Interactive Maps**: Earthquakes, cyclones, and now a US state choropleth for NFIP claims.
+- **Interactive Maps**: Earthquakes, cyclones, and a US state choropleth for NFIP claims.
 - **Quantitative Insurance Analytics**: State rankings, totals, and basic aggregations from millions of NFIP claims records.
-- **USA-Focused Risk Views**: Both the Space Hazards insurance report and the new Insurance Analytics tab emphasize U.S. exposure.
+- **USA-Focused Risk Views**: Both the Space Hazards insurance report and the Insurance Analytics tab emphasize U.S. exposure.
 - **Filtering & Responsiveness**: Minimum intensity slider + clean multi-column layouts.
 - **Auto-Refresh**: All data sources cached and refreshed on a 30-minute cadence.
 
@@ -68,14 +68,14 @@ All data is fetched client-side from public APIs. No user accounts or API keys a
 ## How to Run Locally
 
 ```bash
-git clone https://github.com/Aramina6/realtime-disasters-monitoring.git
-cd realtime-disasters-monitoring
+git clone https://github.com/Aramina6/physical-hazard-risk-tool.git
+cd physical-hazard-risk-tool
 
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-After cloning, all four tabs (including the new **Insurance Analytics (US)** tab) will appear automatically.
+After cloning, all four tabs (including the **Insurance Analytics (US)** tab) will appear automatically.
 
 ---
 
@@ -93,8 +93,8 @@ This project follows **production-style engineering practices** suitable for ins
 ### Running Locally
 
 ```bash
-git clone https://github.com/Aramina6/realtime-disasters-monitoring.git
-cd realtime-disasters-monitoring
+git clone https://github.com/Aramina6/physical-hazard-risk-tool.git
+cd physical-hazard-risk-tool
 
 python -m venv .venv
 source .venv/bin/activate   # or .venv\Scripts\Activate on Windows
