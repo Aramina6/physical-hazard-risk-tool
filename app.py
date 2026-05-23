@@ -9,7 +9,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 st.set_page_config(
-    page_title="Multi-Hazard Monitor – Earthquakes, Cyclones & Space Hazards",
+    page_title="Multi-Hazard Monitor – Earthquakes, Cyclones, Space & Insurance",
     page_icon="⚠️",
     layout="wide"
 )
@@ -161,14 +161,71 @@ def fetch_close_approaches(days_ahead=60, dist_max_au=0.08):
         return pd.DataFrame()
 
 # ----------------------------------------------------------------------
+# US INSURANCE & DISASTER DATA – FEMA OpenFEMA (NFIP + Declarations)
+# Starter quantitative analytics layer
+# ----------------------------------------------------------------------
+@st.cache_data(ttl=3600)
+def fetch_fema_disaster_declarations(years_back=8):
+    """FEMA Disaster Declarations Summaries (state + incident type)."""
+    base = "https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries"
+    start_year = datetime.utcnow().year - years_back
+    url = (
+        f"{base}?$format=json&$top=10000"
+        f"&$filter=declarationDate ge '{start_year}-01-01'"
+        f"&$select=state,incidentType,declarationDate,disasterNumber"
+    )
+    try:
+        data = requests.get(url, timeout=30).json()
+        df = pd.DataFrame(data.get("DisasterDeclarationsSummaries", []))
+        if not df.empty:
+            df["declarationDate"] = pd.to_datetime(df["declarationDate"], errors="coerce")
+            df["year"] = df["declarationDate"].dt.year
+        return df
+    except Exception as e:
+        st.error(f"FEMA Declarations error: {e}")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=3600)
+def fetch_nfip_claims_state_summary(years_back=6):
+    """NFIP Redacted Claims aggregated by state + year (starter volume limit)."""
+    base = "https://www.fema.gov/api/open/v2/FimaNfipClaims"
+    start_year = datetime.utcnow().year - years_back
+    url = (
+        f"{base}?$format=json&$top=35000"
+        f"&$filter=yearOfLoss ge {start_year}"
+        f"&$select=state,yearOfLoss,totalPaid"
+    )
+    try:
+        data = requests.get(url, timeout=50).json()
+        df = pd.DataFrame(data.get("FimaNfipClaims", []))
+        if df.empty:
+            return pd.DataFrame()
+        df["totalPaid"] = pd.to_numeric(df.get("totalPaid", 0), errors="coerce").fillna(0)
+        summary = (
+            df.groupby(["state", "yearOfLoss"])
+            .agg(
+                total_paid=("totalPaid", "sum"),
+                claims_count=("totalPaid", "count")
+            )
+            .reset_index()
+        )
+        summary["total_paid_millions"] = (summary["total_paid"] / 1_000_000).round(1)
+        return summary
+    except Exception as e:
+        st.error(f"NFIP Claims error: {e}")
+        return pd.DataFrame()
+
+# ----------------------------------------------------------------------
 # UI
 # ----------------------------------------------------------------------
-st.title("Multi-Hazard Monitor – Earthquakes, Cyclones & Space Hazards")
-st.markdown("Real-time data from **USGS**, **NOAA NHC**, **JTWC**, **NOAA SWPC** & **NASA/JPL CNEOS**")
+st.title("Multi-Hazard Monitor – Earthquakes, Cyclones, Space & Insurance")
+st.markdown("Real-time data from **USGS**, **NOAA NHC**, **JTWC**, **NOAA SWPC**, **NASA/JPL CNEOS** & **FEMA OpenFEMA**")
 
 min_intensity = st.sidebar.slider("Minimum Intensity", 0.0, 10.0, 1.0, 0.5)
 
-tab_eq, tab_tc, tab_space = st.tabs(["Earthquakes", "Tropical Cyclones", "Space Hazards (USA)"])
+tab_eq, tab_tc, tab_space, tab_ins = st.tabs(
+    ["Earthquakes", "Tropical Cyclones", "Space Hazards (USA)", "Insurance Analytics (US)"]
+)
 
 # --- Earthquakes ---
 with tab_eq:
@@ -320,7 +377,101 @@ with tab_space:
 *This report is an educational synthesis of public scientific and industry sources (NOAA, NASA, USGS, National Academies, Lloyd’s reports). It is not actuarial advice or a catastrophe model output. For underwriting or risk transfer decisions, consult qualified catastrophe modelers and current scientific literature.*
 """)
 
-    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA (NHC/SWPC) – JTWC – NASA/JPL")
+    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA (NHC/SWPC) – JTWC – NASA/JPL – FEMA OpenFEMA")
+
+# --- Insurance Analytics (US) - Starter Quantitative View ---
+with tab_ins:
+    st.subheader("US Insurance & Disaster Economics")
+    st.caption("State-level NFIP claims + FEMA disaster declarations (OpenFEMA) — Starter analytics. More filters, time-series correlations & cross-tabs with Space Hazards coming soon.")
+
+    # Fetch data (cached)
+    claims = fetch_nfip_claims_state_summary(years_back=6)
+    decls = fetch_fema_disaster_declarations(years_back=6)
+
+    # Top-level KPIs
+    kpi1, kpi2, kpi3 = st.columns(3)
+    if not claims.empty:
+        total_paid_b = claims["total_paid"].sum() / 1_000_000_000
+        total_claims = int(claims["claims_count"].sum())
+        top_state = claims.groupby("state")["total_paid_millions"].sum().idxmax()
+        with kpi1:
+            st.metric("NFIP Paid (last 6 yrs)", f"${total_paid_b:.2f} B")
+        with kpi2:
+            st.metric("Total NFIP Claims Records", f"{total_claims:,}")
+        with kpi3:
+            st.metric("Highest Payout State", top_state)
+    else:
+        st.warning("NFIP claims data temporarily unavailable.")
+
+    st.divider()
+
+    # Two column layout: Choropleth + Bar chart
+    map_col, bar_col = st.columns([1.35, 1])
+
+    if not claims.empty:
+        # State totals for choropleth & bar
+        state_totals = (
+            claims.groupby("state")
+            .agg(total_paid_m=("total_paid_millions", "sum"),
+                 claim_count=("claims_count", "sum"))
+            .reset_index()
+            .sort_values("total_paid_m", ascending=False)
+        )
+
+        with map_col:
+            st.subheader("NFIP Claims Paid by State")
+            fig_map = px.choropleth(
+                state_totals,
+                locations="state",
+                locationmode="USA-states",
+                color="total_paid_m",
+                color_continuous_scale="Reds",
+                scope="usa",
+                title="Total NFIP Paid (millions USD) – Last 6 Years",
+                height=420
+            )
+            fig_map.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+            st.plotly_chart(fig_map, use_container_width=True)
+
+        with bar_col:
+            st.subheader("Top 12 States by NFIP Payouts")
+            top12 = state_totals.head(12)
+            fig_bar = px.bar(
+                top12,
+                x="total_paid_m",
+                y="state",
+                orientation="h",
+                color="total_paid_m",
+                color_continuous_scale="Reds",
+                title="NFIP Paid (millions USD)",
+                height=420
+            )
+            fig_bar.update_layout(yaxis={"categoryorder": "total ascending"}, margin=dict(l=0, r=10, t=40, b=0))
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        # Simple recent years table
+        st.subheader("State × Year NFIP Summary (sample)")
+        st.dataframe(
+            claims.sort_values(["yearOfLoss", "total_paid_millions"], ascending=[False, False]).head(25),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.caption("Data source: FEMA OpenFEMA – FimaNfipClaims (redacted). Values in millions USD. Limited to recent years for performance in this starter version.")
+    else:
+        st.info("No NFIP claims summary data loaded yet.")
+
+    # Cross-reference note with Space Hazards
+    st.divider()
+    st.markdown("""**Next-level ideas (roadmap)**
+- Time-series correlation: NFIP claims spikes after major FEMA declarations (hurricanes/floods)
+- Overlay Space Weather (high Kp/G-scale periods) with states that have high homeowners exposure (Treasury FIO + NAIC data)
+- Filter by incident type (Hurricane, Severe Storm, Flood, etc.)
+- Loss ratio proxies using NFIP Policies dataset
+
+*This is a starter implementation. Full cross-filtering between the Space Hazards tab and Insurance Analytics is planned.*""")
+
+    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA (NHC/SWPC) – JTWC – NASA/JPL – FEMA OpenFEMA")
 
 # Footer note
-st.caption("Enhanced with Space Hazards & USA Insurance view • Open data only • Not for operational decision-making without professional validation")
+st.caption("Enhanced with Space Hazards & US Insurance Analytics • Open data only • Not for operational decision-making without professional validation")
