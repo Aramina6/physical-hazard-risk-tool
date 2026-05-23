@@ -116,7 +116,6 @@ def fetch_kp_index():
         data = requests.get(url, timeout=15).json()
         if not data or len(data) < 2:
             return pd.DataFrame()
-        # First row is header
         header = data[0]
         rows = data[1:]
         df = pd.DataFrame(rows, columns=header)
@@ -130,8 +129,6 @@ def fetch_kp_index():
 
 @st.cache_data(ttl=3600)
 def fetch_close_approaches(days_ahead=60, dist_max_au=0.08):
-    """Fetch close Earth approaches from JPL Small-Body Database (CNEOS CAD API).
-    No API key required for basic queries."""
     today = datetime.utcnow().date()
     date_min = today.strftime("%Y-%m-%d")
     date_max = (today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
@@ -150,10 +147,8 @@ def fetch_close_approaches(days_ahead=60, dist_max_au=0.08):
         df["dist_au"] = pd.to_numeric(df["dist"], errors="coerce")
         df["h"] = pd.to_numeric(df["h"], errors="coerce")
         df["v_inf"] = pd.to_numeric(df["v_inf"], errors="coerce")
-        # Approximate lunar distances (1 LD ≈ 0.00257 AU)
         df["dist_ld"] = df["dist_au"] / 0.00257
         df["name"] = df["fullname"].fillna(df["des"])
-        # Filter for more interesting objects (larger or very close)
         mask = (df["h"] < 28.0) | (df["dist_ld"] < 6.0)
         df = df[mask].copy()
         return df.sort_values("close_date").reset_index(drop=True)
@@ -161,12 +156,10 @@ def fetch_close_approaches(days_ahead=60, dist_max_au=0.08):
         return pd.DataFrame()
 
 # ----------------------------------------------------------------------
-# US INSURANCE & DISASTER DATA – FEMA OpenFEMA (NFIP + Declarations)
-# Starter quantitative analytics layer
+# US INSURANCE & DISASTER DATA – FEMA OpenFEMA
 # ----------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_fema_disaster_declarations(years_back=8):
-    """FEMA Disaster Declarations Summaries (state + incident type)."""
     base = "https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries"
     start_year = datetime.utcnow().year - years_back
     url = (
@@ -187,7 +180,6 @@ def fetch_fema_disaster_declarations(years_back=8):
 
 @st.cache_data(ttl=3600)
 def fetch_nfip_claims_state_summary(years_back=6):
-    """NFIP Redacted Claims aggregated by state + year (starter volume limit)."""
     base = "https://www.fema.gov/api/open/v2/FimaNfipClaims"
     start_year = datetime.utcnow().year - years_back
     url = (
@@ -203,10 +195,7 @@ def fetch_nfip_claims_state_summary(years_back=6):
         df["totalPaid"] = pd.to_numeric(df.get("totalPaid", 0), errors="coerce").fillna(0)
         summary = (
             df.groupby(["state", "yearOfLoss"])
-            .agg(
-                total_paid=("totalPaid", "sum"),
-                claims_count=("totalPaid", "count")
-            )
+            .agg(total_paid=("totalPaid", "sum"), claims_count=("totalPaid", "count"))
             .reset_index()
         )
         summary["total_paid_millions"] = (summary["total_paid"] / 1_000_000).round(1)
@@ -223,9 +212,7 @@ st.markdown("Real-time data from **USGS**, **NOAA NHC**, **JTWC**, **NOAA SWPC**
 
 min_intensity = st.sidebar.slider("Minimum Intensity", 0.0, 10.0, 1.0, 0.5)
 
-tab_eq, tab_tc, tab_space, tab_ins = st.tabs(
-    ["Earthquakes", "Tropical Cyclones", "Space Hazards (USA)", "Insurance Analytics (US)"]
-)
+tab_eq, tab_tc, tab_space, tab_ins = st.tabs(["Earthquakes", "Tropical Cyclones", "Space Hazards (USA)", "Insurance Analytics (US)"])
 
 # --- Earthquakes ---
 with tab_eq:
@@ -234,14 +221,10 @@ with tab_eq:
         df = df[df["magnitude"] >= min_intensity]
         col1, col2 = st.columns([2, 1])
         with col1:
-            fig = px.scatter_mapbox(
-                df, lat="lat", lon="lon",
-                size="severity", color="magnitude",
-                color_continuous_scale="Reds",
-                hover_name="name",
-                hover_data=["location", "depth_km", "impact", "tsunami"],
-                zoom=1, height=560
-            )
+            fig = px.scatter_mapbox(df, lat="lat", lon="lon", size="severity", color="magnitude",
+                                    color_continuous_scale="Reds", hover_name="name",
+                                    hover_data=["location", "depth_km", "impact", "tsunami"],
+                                    zoom=1, height=560)
             fig.update_layout(mapbox_style="open-street-map")
             st.plotly_chart(fig, use_container_width=True)
         with col2:
@@ -261,14 +244,10 @@ with tab_tc:
         df = df[df["magnitude"] >= min_intensity]
         col1, col2 = st.columns([2, 1])
         with col1:
-            fig = px.scatter_mapbox(
-                df, lat="lat", lon="lon",
-                size="magnitude", color="severity",
-                color_continuous_scale="Blues",
-                hover_name="name",
-                hover_data=["basin", "category", "max_wind_kts", "impact"],
-                zoom=1, height=560
-            )
+            fig = px.scatter_mapbox(df, lat="lat", lon="lon", size="magnitude", color="severity",
+                                    color_continuous_scale="Blues", hover_name="name",
+                                    hover_data=["basin", "category", "max_wind_kts", "impact"],
+                                    zoom=1, height=560)
             fig.update_layout(mapbox_style="open-street-map")
             st.plotly_chart(fig, use_container_width=True)
         with col2:
@@ -284,10 +263,16 @@ with tab_tc:
 # --- Space Hazards & USA Insurance Report ---
 with tab_space:
     st.markdown("**Space Weather & Near-Earth Objects** — focused insurance risk view for the United States")
-    st.caption("Live geomagnetic activity (NOAA SWPC) + upcoming close approaches (NASA/JPL CNEOS). For educational and situational awareness purposes.")
+    st.caption("Live geomagnetic activity (NOAA SWPC) + upcoming close approaches (NASA/JPL CNEOS).")
 
-    # Current Kp / Space Weather
     kp_df = fetch_kp_index()
+
+    # SAFE DEFAULTS - prevents NameError when Kp fetch fails
+    kp_val = None
+    g_level = "Unknown"
+    g_desc = "#7f8c8d"
+    risk_note = "Unknown"
+
     if not kp_df.empty:
         latest = kp_df.iloc[0]
         kp_val = float(latest["kp"])
@@ -313,13 +298,8 @@ with tab_space:
         with kcol3:
             st.markdown(f"**Geomagnetic Storm Level**: <span style='color:{g_desc};font-weight:700'>{g_level}</span>", unsafe_allow_html=True)
 
-        # Recent Kp trend (last ~40 points ~ 3+ days)
         trend = kp_df.head(40).sort_values("time_utc")
-        fig_kp = px.line(
-            trend, x="time_utc", y="kp",
-            title="Kp Index Trend (recent)",
-            markers=True, height=260
-        )
+        fig_kp = px.line(trend, x="time_utc", y="kp", title="Kp Index Trend (recent)", markers=True, height=260)
         fig_kp.update_yaxes(range=[0, 9.5], title="Kp")
         fig_kp.update_traces(line_color="#e74c3c")
         st.plotly_chart(fig_kp, use_container_width=True)
@@ -328,7 +308,6 @@ with tab_space:
 
     st.divider()
 
-    # Two-column layout: Close approaches | Insurance Report
     neo_df = fetch_close_approaches()
     neo_col, ins_col = st.columns([1.05, 1.15])
 
@@ -345,133 +324,87 @@ with tab_space:
                 st.markdown(f"**{nm}**")
                 st.caption(f"{dt} • ~{d_ld:.2f} LD • H={hh:.1f} ({size}) • {float(r.get('v_inf', 0)):.0f} km/s")
                 st.divider()
-            st.caption("Source: [JPL CNEOS CAD](https://ssd-api.jpl.nasa.gov/doc/cad.html) – Not all objects are potentially hazardous.")
+            st.caption("Source: [JPL CNEOS CAD](https://ssd-api.jpl.nasa.gov/doc/cad.html)")
         else:
-            st.info("No qualifying close approaches found in the next 60 days, or temporary data issue.")
+            st.info("No qualifying close approaches found in the next 60 days.")
 
     with ins_col:
         st.subheader("🇺🇸 USA Insurance Exposure Report")
-        # Dynamic risk note
-        risk_note = "Low" if kp_val < 5 else ("Elevated" if kp_val < 7 else "High")
-        st.markdown(f"**Current space weather risk for USA infrastructure**: **{risk_note}** (Kp {kp_val:.1f} / {g_level})")
+
+        if kp_val is not None:
+            risk_note = "Low" if kp_val < 5 else ("Elevated" if kp_val < 7 else "High")
+            st.markdown(f"**Current space weather risk for USA infrastructure**: **{risk_note}** (Kp {kp_val:.1f} / {g_level})")
+        else:
+            st.markdown("**Current space weather risk for USA infrastructure**: **Data temporarily unavailable**")
 
         st.markdown("""
 **Key Exposed Sectors (United States)**
 
 - **Electric Power Transmission & Distribution**  
-  High-latitude and northeastern states are most vulnerable to Geomagnetically Induced Currents (GIC). A severe (G4–G5) storm can damage or destroy extra-high-voltage transformers, leading to long-duration blackouts. Industry and government studies model potential economic losses from a Carrington-scale event in the range of **hundreds of billions to >$2 trillion**.
+  High-latitude and northeastern states are most vulnerable to Geomagnetically Induced Currents (GIC).
 
 - **Satellite Operators & Space Assets**  
-  The U.S. commercial satellite fleet (Starlink, OneWeb, GEO comms, Earth observation, GPS augmentation) numbers in the thousands. Increased atmospheric drag, surface charging, and single-event upsets during solar storms represent a growing insured value.
+  The U.S. commercial satellite fleet numbers in the thousands.
 
-- **Aviation & Polar Routes**  
-  During solar proton events and strong geomagnetic storms, airlines reroute polar flights, incurring extra fuel and crew costs. Radiation exposure considerations for crews and passengers also factor into insurance.
+- **Aviation & Polar Routes**
 
-- **Oil, Gas & Pipeline Infrastructure**  
-  GIC can interfere with pipeline integrity monitoring systems and SCADA networks.
+- **Oil, Gas & Pipeline Infrastructure**
 
-**Historical / Scenario Benchmarks (public literature)**
-- 1989 Quebec G5 storm: ~6 million customers without power for hours to days.
-- 1859 Carrington Event (extreme benchmark): Modern repeat scenarios frequently cited by insurers and Lloyd’s reports with potential insured losses in the **$100B – low trillions** range depending on severity and duration.
+**Historical Benchmarks**
+- 1989 Quebec G5 storm
+- 1859 Carrington Event (extreme benchmark)
 
-*This report is an educational synthesis of public scientific and industry sources (NOAA, NASA, USGS, National Academies, Lloyd’s reports). It is not actuarial advice or a catastrophe model output. For underwriting or risk transfer decisions, consult qualified catastrophe modelers and current scientific literature.*
+*Educational synthesis only — not actuarial advice.*
 """)
 
-    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA (NHC/SWPC) – JTWC – NASA/JPL – FEMA OpenFEMA")
+    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC – NASA/JPL – FEMA OpenFEMA")
 
-# --- Insurance Analytics (US) - Starter Quantitative View ---
+# --- Insurance Analytics (US) ---
 with tab_ins:
     st.subheader("US Insurance & Disaster Economics")
-    st.caption("State-level NFIP claims + FEMA disaster declarations (OpenFEMA) — Starter analytics. More filters, time-series correlations & cross-tabs with Space Hazards coming soon.")
+    st.caption("State-level NFIP claims + FEMA disaster declarations (OpenFEMA) — Starter version")
 
-    # Fetch data (cached)
     claims = fetch_nfip_claims_state_summary(years_back=6)
     decls = fetch_fema_disaster_declarations(years_back=6)
 
-    # Top-level KPIs
     kpi1, kpi2, kpi3 = st.columns(3)
     if not claims.empty:
         total_paid_b = claims["total_paid"].sum() / 1_000_000_000
         total_claims = int(claims["claims_count"].sum())
         top_state = claims.groupby("state")["total_paid_millions"].sum().idxmax()
-        with kpi1:
-            st.metric("NFIP Paid (last 6 yrs)", f"${total_paid_b:.2f} B")
-        with kpi2:
-            st.metric("Total NFIP Claims Records", f"{total_claims:,}")
-        with kpi3:
-            st.metric("Highest Payout State", top_state)
+        with kpi1: st.metric("NFIP Paid (last 6 yrs)", f"${total_paid_b:.2f} B")
+        with kpi2: st.metric("Total NFIP Claims Records", f"{total_claims:,}")
+        with kpi3: st.metric("Highest Payout State", top_state)
     else:
         st.warning("NFIP claims data temporarily unavailable.")
 
     st.divider()
 
-    # Two column layout: Choropleth + Bar chart
-    map_col, bar_col = st.columns([1.35, 1])
-
     if not claims.empty:
-        # State totals for choropleth & bar
-        state_totals = (
-            claims.groupby("state")
-            .agg(total_paid_m=("total_paid_millions", "sum"),
-                 claim_count=("claims_count", "sum"))
-            .reset_index()
-            .sort_values("total_paid_m", ascending=False)
-        )
+        state_totals = claims.groupby("state").agg(
+            total_paid_m=("total_paid_millions", "sum"),
+            claim_count=("claims_count", "sum")
+        ).reset_index().sort_values("total_paid_m", ascending=False)
 
+        map_col, bar_col = st.columns([1.35, 1])
         with map_col:
             st.subheader("NFIP Claims Paid by State")
-            fig_map = px.choropleth(
-                state_totals,
-                locations="state",
-                locationmode="USA-states",
-                color="total_paid_m",
-                color_continuous_scale="Reds",
-                scope="usa",
-                title="Total NFIP Paid (millions USD) – Last 6 Years",
-                height=420
-            )
-            fig_map.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+            fig_map = px.choropleth(state_totals, locations="state", locationmode="USA-states",
+                                    color="total_paid_m", color_continuous_scale="Reds", scope="usa",
+                                    title="Total NFIP Paid (millions USD) – Last 6 Years", height=420)
             st.plotly_chart(fig_map, use_container_width=True)
 
         with bar_col:
             st.subheader("Top 12 States by NFIP Payouts")
             top12 = state_totals.head(12)
-            fig_bar = px.bar(
-                top12,
-                x="total_paid_m",
-                y="state",
-                orientation="h",
-                color="total_paid_m",
-                color_continuous_scale="Reds",
-                title="NFIP Paid (millions USD)",
-                height=420
-            )
-            fig_bar.update_layout(yaxis={"categoryorder": "total ascending"}, margin=dict(l=0, r=10, t=40, b=0))
+            fig_bar = px.bar(top12, x="total_paid_m", y="state", orientation="h",
+                             color="total_paid_m", color_continuous_scale="Reds", height=420)
             st.plotly_chart(fig_bar, use_container_width=True)
 
-        # Simple recent years table
         st.subheader("State × Year NFIP Summary (sample)")
-        st.dataframe(
-            claims.sort_values(["yearOfLoss", "total_paid_millions"], ascending=[False, False]).head(25),
-            use_container_width=True,
-            hide_index=True
-        )
+        st.dataframe(claims.sort_values(["yearOfLoss", "total_paid_millions"], ascending=[False, False]).head(20),
+                     use_container_width=True, hide_index=True)
 
-        st.caption("Data source: FEMA OpenFEMA – FimaNfipClaims (redacted). Values in millions USD. Limited to recent years for performance in this starter version.")
-    else:
-        st.info("No NFIP claims summary data loaded yet.")
+    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC – NASA/JPL – FEMA OpenFEMA")
 
-    # Cross-reference note with Space Hazards
-    st.divider()
-    st.markdown("""**Next-level ideas (roadmap)**
-- Time-series correlation: NFIP claims spikes after major FEMA declarations (hurricanes/floods)
-- Overlay Space Weather (high Kp/G-scale periods) with states that have high homeowners exposure (Treasury FIO + NAIC data)
-- Filter by incident type (Hurricane, Severe Storm, Flood, etc.)
-- Loss ratio proxies using NFIP Policies dataset
-
-*This is a starter implementation. Full cross-filtering between the Space Hazards tab and Insurance Analytics is planned.*""")
-
-    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA (NHC/SWPC) – JTWC – NASA/JPL – FEMA OpenFEMA")
-
-# Footer note
-st.caption("Enhanced with Space Hazards & US Insurance Analytics • Open data only • Not for operational decision-making without professional validation")
+st.caption("Multi-Hazard Monitor • Open data only • Educational use")
