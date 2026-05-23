@@ -394,7 +394,20 @@ with tab_space:
 # --- Insurance Analytics (US) ---
 with tab_ins:
     st.subheader("US Insurance & Disaster Economics")
-    st.caption("State-level NFIP claims + FEMA disaster declarations (OpenFEMA) — Starter version")
+
+    st.markdown("""
+    **Translating natural hazard events into real financial impact using public U.S. government data.**
+
+    This tab shows how **climate and geophysical events** translate into **insured losses** at the state level, using the best large-scale public dataset available: FEMA's National Flood Insurance Program (NFIP) claims.
+
+    **Why this matters**
+    - Insurers use claims data to validate catastrophe models and set reserves.
+    - Banks and investors assess physical risk in mortgage and real estate portfolios.
+    - Regulators monitor systemic exposure (e.g., concentration of losses in Florida, Texas, Louisiana).
+    - Climate scientists use loss data to ground-truth vulnerability functions.
+    """)
+
+    st.caption("Powered by FEMA OpenFEMA (NFIP Redacted Claims + Disaster Declarations) — the largest public U.S. insured loss dataset.")
 
     claims = fetch_nfip_claims_state_summary(years_back=6)
     decls = fetch_fema_disaster_declarations(years_back=6)
@@ -436,6 +449,28 @@ with tab_ins:
         st.subheader("State × Year NFIP Summary (sample)")
         st.dataframe(claims.sort_values(["yearOfLoss", "total_paid_millions"], ascending=[False, False]).head(20),
                      use_container_width=True, hide_index=True)
+
+    # Methodology note for better UX and transparency
+    with st.expander("Methodology, Data Sources & Limitations"):
+        st.markdown("""
+        **Data Sources**
+        - **FEMA OpenFEMA – FimaNfipClaims**: Redacted individual flood insurance claims (one of the few large public loss datasets in the U.S.).
+        - **FEMA OpenFEMA – DisasterDeclarationsSummaries**: Official presidential disaster declarations with incident types and dates.
+
+        **What the numbers represent**
+        - `total_paid` = Sum of building + contents + Increased Cost of Compliance (ICC) payments on claims.
+        - Data is **gross paid amounts** before any recoveries or reinsurance.
+
+        **Important Limitations (please read)**
+        - NFIP only covers **flood** damage. Wind, hail, wildfire, and earthquake losses are **not** included.
+        - Not all properties in flood zones carry NFIP policies (take-up rates vary significantly by state).
+        - Claims can be filed years after the event (development lag).
+        - Data is redacted for privacy — individual addresses and policy details are removed.
+
+        This view is intended as a **high-level indicator** of state-level flood loss patterns, not as a substitute for commercial catastrophe models used by insurers.
+
+        **Recommended next steps for serious analysis**: Combine with commercial CAT models, internal exposure data, and vulnerability curves.
+        """)
 
     st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC – NASA/JPL – FEMA OpenFEMA")
 
