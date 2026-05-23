@@ -110,17 +110,17 @@ def fetch_cyclones_month():
 # ----------------------------------------------------------------------
 @st.cache_data(ttl=1800)
 def fetch_kp_index():
-    """Fetch recent planetary K-index from NOAA SWPC."""
+    """Fetch recent planetary K-index from NOAA SWPC.
+    The API now returns list of dicts with column 'Kp' (capital K).
+    """
     url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
     try:
         data = requests.get(url, timeout=15).json()
-        if not data or len(data) < 2:
+        if not data:
             return pd.DataFrame()
-        header = data[0]
-        rows = data[1:]
-        df = pd.DataFrame(rows, columns=header)
+        df = pd.DataFrame(data)                    # list of dicts
         df["time_utc"] = pd.to_datetime(df["time_tag"])
-        df["kp"] = pd.to_numeric(df["kp"], errors="coerce")
+        df["kp"] = pd.to_numeric(df["Kp"], errors="coerce")   # capital K
         df = df.dropna(subset=["kp"]).sort_values("time_utc", ascending=False)
         return df
     except Exception as e:
@@ -180,19 +180,34 @@ def fetch_fema_disaster_declarations(years_back=8):
 
 @st.cache_data(ttl=3600)
 def fetch_nfip_claims_state_summary(years_back=6):
+    """Fetch and aggregate NFIP claims using the correct payment fields from OpenFEMA.
+    The schema uses amountPaidOn* columns (not totalPaid).
+    """
     base = "https://www.fema.gov/api/open/v2/FimaNfipClaims"
     start_year = datetime.utcnow().year - years_back
     url = (
-        f"{base}?$format=json&$top=35000"
+        f"{base}?$format=json&$top=25000"
         f"&$filter=yearOfLoss ge {start_year}"
-        f"&$select=state,yearOfLoss,totalPaid"
+        f"&$select=state,yearOfLoss,amountPaidOnBuildingClaim,amountPaidOnContentsClaim,amountPaidOnIncreasedCostOfComplianceClaim"
     )
     try:
         data = requests.get(url, timeout=50).json()
         df = pd.DataFrame(data.get("FimaNfipClaims", []))
         if df.empty:
             return pd.DataFrame()
-        df["totalPaid"] = pd.to_numeric(df.get("totalPaid", 0), errors="coerce").fillna(0)
+
+        for col in ["amountPaidOnBuildingClaim", "amountPaidOnContentsClaim", "amountPaidOnIncreasedCostOfComplianceClaim"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            else:
+                df[col] = 0.0
+
+        df["totalPaid"] = (
+            df["amountPaidOnBuildingClaim"] +
+            df["amountPaidOnContentsClaim"] +
+            df["amountPaidOnIncreasedCostOfComplianceClaim"]
+        )
+
         summary = (
             df.groupby(["state", "yearOfLoss"])
             .agg(total_paid=("totalPaid", "sum"), claims_count=("totalPaid", "count"))
