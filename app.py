@@ -328,7 +328,17 @@ with tab_space:
 
     with neo_col:
         st.subheader("☄️ Upcoming Close Approaches")
-        st.caption("Next 60 days | Closest or larger objects (H < 28 or <6 LD)")
+
+        st.markdown("""
+        **Next 60 days** — Predicted close passes of near-Earth objects tracked by NASA.
+        
+        **Why this matters for insurance/risk**: Even non-impacting objects can be relevant for satellite operators, aviation, and long-term planetary defense studies.
+        
+        **Filters**: Only showing objects with absolute magnitude **H < 28** (roughly >10–20 meters) **or** passing within **6 Lunar Distances** (~2.3 million km).
+        """)
+
+        st.caption("H = Absolute magnitude (lower = larger/brighter object) • LD = Lunar Distance (1 LD ≈ 384,400 km)")
+
         if not neo_df.empty:
             for _, r in neo_df.head(9).iterrows():
                 nm = str(r.get("name", r.get("des", "Object")))[:42]
@@ -339,9 +349,16 @@ with tab_space:
                 st.markdown(f"**{nm}**")
                 st.caption(f"{dt} • ~{d_ld:.2f} LD • H={hh:.1f} ({size}) • {float(r.get('v_inf', 0)):.0f} km/s")
                 st.divider()
-            st.caption("Source: [JPL CNEOS CAD](https://ssd-api.jpl.nasa.gov/doc/cad.html)")
+            st.caption("Source: NASA/JPL CNEOS Close Approach Database (CAD) — official planetary defense data")
         else:
-            st.info("No qualifying close approaches found in the next 60 days.")
+            st.info("""
+            **No objects currently meet the size or proximity thresholds in the next 60 days.**
+
+            This is normal. The vast majority of tracked near-Earth objects are either very small (often just a few meters) or will pass at much safer distances. Large or very close approaches are relatively rare.
+
+            You can explore the full unfiltered catalog anytime at the official  
+            [NASA CNEOS Close Approach Table](https://cneos.jpl.nasa.gov/ca/).
+            """)
 
     with ins_col:
         st.subheader("🇺🇸 USA Insurance Exposure Report")
