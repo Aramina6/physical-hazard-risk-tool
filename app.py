@@ -273,7 +273,15 @@ with tab_tc:
                 st.markdown(f"[Forecast]({r['article_link']})")
                 st.divider()
     else:
-        st.info("No active cyclones (off-season).")
+        st.info("""
+        **No active tropical cyclones at this time.**
+
+        According to the latest NOAA National Hurricane Center outlook, there are currently no tropical cyclones in the Atlantic basin.
+
+        This is normal during quieter periods. The official Atlantic hurricane season runs from **June 1 to November 30**, with peak activity typically occurring between mid-August and mid-October.
+
+        The dashboard will automatically show active storms as soon as they appear in the official advisories.
+        """)
 
 # --- Space Hazards & USA Insurance Report ---
 with tab_space:
