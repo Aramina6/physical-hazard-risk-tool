@@ -9,8 +9,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 st.set_page_config(
-    page_title="Earthquakes & Cyclones – Last 30 Days",
-    page_icon="Alert",
+    page_title="Multi-Hazard Monitor – Earthquakes, Cyclones & Space Hazards",
+    page_icon="⚠️",
     layout="wide"
 )
 
@@ -106,14 +106,69 @@ def fetch_cyclones_month():
     return pd.DataFrame(cyclones).drop_duplicates("name")
 
 # ----------------------------------------------------------------------
+# SPACE HAZARDS – NOAA SWPC Kp + NASA/JPL CNEOS Close Approaches (USA Insurance)
+# ----------------------------------------------------------------------
+@st.cache_data(ttl=1800)
+def fetch_kp_index():
+    """Fetch recent planetary K-index from NOAA SWPC."""
+    url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+    try:
+        data = requests.get(url, timeout=15).json()
+        if not data or len(data) < 2:
+            return pd.DataFrame()
+        # First row is header
+        header = data[0]
+        rows = data[1:]
+        df = pd.DataFrame(rows, columns=header)
+        df["time_utc"] = pd.to_datetime(df["time_tag"])
+        df["kp"] = pd.to_numeric(df["kp"], errors="coerce")
+        df = df.dropna(subset=["kp"]).sort_values("time_utc", ascending=False)
+        return df
+    except Exception as e:
+        st.error(f"Space weather (Kp) error: {e}")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=3600)
+def fetch_close_approaches(days_ahead=60, dist_max_au=0.08):
+    """Fetch close Earth approaches from JPL Small-Body Database (CNEOS CAD API).
+    No API key required for basic queries."""
+    today = datetime.utcnow().date()
+    date_min = today.strftime("%Y-%m-%d")
+    date_max = (today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+    url = (
+        f"https://ssd-api.jpl.nasa.gov/cad.api?"
+        f"date-min={date_min}&date-max={date_max}"
+        f"&dist-max={dist_max_au}&sort=dist&limit=30&fullname=true"
+    )
+    try:
+        resp = requests.get(url, timeout=20).json()
+        if "data" not in resp or not resp.get("data"):
+            return pd.DataFrame()
+        cols = resp.get("fields", [])
+        df = pd.DataFrame(resp["data"], columns=cols)
+        df["close_date"] = pd.to_datetime(df["cd"].str.replace(" ", "T", regex=False))
+        df["dist_au"] = pd.to_numeric(df["dist"], errors="coerce")
+        df["h"] = pd.to_numeric(df["h"], errors="coerce")
+        df["v_inf"] = pd.to_numeric(df["v_inf"], errors="coerce")
+        # Approximate lunar distances (1 LD ≈ 0.00257 AU)
+        df["dist_ld"] = df["dist_au"] / 0.00257
+        df["name"] = df["fullname"].fillna(df["des"])
+        # Filter for more interesting objects (larger or very close)
+        mask = (df["h"] < 28.0) | (df["dist_ld"] < 6.0)
+        df = df[mask].copy()
+        return df.sort_values("close_date").reset_index(drop=True)
+    except Exception:
+        return pd.DataFrame()
+
+# ----------------------------------------------------------------------
 # UI
 # ----------------------------------------------------------------------
-st.title("Earthquakes & Tropical Cyclones – Last 30 Days")
-st.markdown("Real-time data from **USGS**, **NOAA NHC**, and **JTWC**")
+st.title("Multi-Hazard Monitor – Earthquakes, Cyclones & Space Hazards")
+st.markdown("Real-time data from **USGS**, **NOAA NHC**, **JTWC**, **NOAA SWPC** & **NASA/JPL CNEOS**")
 
 min_intensity = st.sidebar.slider("Minimum Intensity", 0.0, 10.0, 1.0, 0.5)
 
-tab_eq, tab_tc = st.tabs(["Earthquakes", "Tropical Cyclones"])
+tab_eq, tab_tc, tab_space = st.tabs(["Earthquakes", "Tropical Cyclones", "Space Hazards (USA)"])
 
 # --- Earthquakes ---
 with tab_eq:
@@ -169,4 +224,103 @@ with tab_tc:
     else:
         st.info("No active cyclones (off-season).")
 
-st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC")
+# --- Space Hazards & USA Insurance Report ---
+with tab_space:
+    st.markdown("**Space Weather & Near-Earth Objects** — focused insurance risk view for the United States")
+    st.caption("Live geomagnetic activity (NOAA SWPC) + upcoming close approaches (NASA/JPL CNEOS). For educational and situational awareness purposes.")
+
+    # Current Kp / Space Weather
+    kp_df = fetch_kp_index()
+    if not kp_df.empty:
+        latest = kp_df.iloc[0]
+        kp_val = float(latest["kp"])
+
+        if kp_val >= 9.0:
+            g_level, g_desc = "G5 Extreme", "#c0392b"
+        elif kp_val >= 8.0:
+            g_level, g_desc = "G4 Severe", "#e67e22"
+        elif kp_val >= 7.0:
+            g_level, g_desc = "G3 Strong", "#f39c12"
+        elif kp_val >= 6.0:
+            g_level, g_desc = "G2 Moderate", "#f1c40f"
+        elif kp_val >= 5.0:
+            g_level, g_desc = "G1 Minor", "#27ae60"
+        else:
+            g_level, g_desc = "Quiet (G0)", "#7f8c8d"
+
+        kcol1, kcol2, kcol3 = st.columns([1, 1, 1.2])
+        with kcol1:
+            st.metric(label="Latest Planetary Kp", value=f"{kp_val:.2f}")
+        with kcol2:
+            st.metric(label="Observation Time (UTC)", value=str(latest["time_utc"])[:19])
+        with kcol3:
+            st.markdown(f"**Geomagnetic Storm Level**: <span style='color:{g_desc};font-weight:700'>{g_level}</span>", unsafe_allow_html=True)
+
+        # Recent Kp trend (last ~40 points ~ 3+ days)
+        trend = kp_df.head(40).sort_values("time_utc")
+        fig_kp = px.line(
+            trend, x="time_utc", y="kp",
+            title="Kp Index Trend (recent)",
+            markers=True, height=260
+        )
+        fig_kp.update_yaxes(range=[0, 9.5], title="Kp")
+        fig_kp.update_traces(line_color="#e74c3c")
+        st.plotly_chart(fig_kp, use_container_width=True)
+    else:
+        st.warning("Could not load live Kp index data.")
+
+    st.divider()
+
+    # Two-column layout: Close approaches | Insurance Report
+    neo_df = fetch_close_approaches()
+    neo_col, ins_col = st.columns([1.05, 1.15])
+
+    with neo_col:
+        st.subheader("☄️ Upcoming Close Approaches")
+        st.caption("Next 60 days | Closest or larger objects (H < 28 or <6 LD)")
+        if not neo_df.empty:
+            for _, r in neo_df.head(9).iterrows():
+                nm = str(r.get("name", r.get("des", "Object")))[:42]
+                d_ld = float(r.get("dist_ld", 0))
+                hh = float(r.get("h", 99))
+                dt = str(r.get("close_date", ""))[:10]
+                size = "tiny" if hh > 27 else ("small" if hh > 24 else ("medium" if hh > 20 else "large"))
+                st.markdown(f"**{nm}**")
+                st.caption(f"{dt} • ~{d_ld:.2f} LD • H={hh:.1f} ({size}) • {float(r.get('v_inf', 0)):.0f} km/s")
+                st.divider()
+            st.caption("Source: [JPL CNEOS CAD](https://ssd-api.jpl.nasa.gov/doc/cad.html) – Not all objects are potentially hazardous.")
+        else:
+            st.info("No qualifying close approaches found in the next 60 days, or temporary data issue.")
+
+    with ins_col:
+        st.subheader("🇺🇸 USA Insurance Exposure Report")
+        # Dynamic risk note
+        risk_note = "Low" if kp_val < 5 else ("Elevated" if kp_val < 7 else "High")
+        st.markdown(f"**Current space weather risk for USA infrastructure**: **{risk_note}** (Kp {kp_val:.1f} / {g_level})")
+
+        st.markdown("""
+**Key Exposed Sectors (United States)**
+
+- **Electric Power Transmission & Distribution**  
+  High-latitude and northeastern states are most vulnerable to Geomagnetically Induced Currents (GIC). A severe (G4–G5) storm can damage or destroy extra-high-voltage transformers, leading to long-duration blackouts. Industry and government studies model potential economic losses from a Carrington-scale event in the range of **hundreds of billions to >$2 trillion**.
+
+- **Satellite Operators & Space Assets**  
+  The U.S. commercial satellite fleet (Starlink, OneWeb, GEO comms, Earth observation, GPS augmentation) numbers in the thousands. Increased atmospheric drag, surface charging, and single-event upsets during solar storms represent a growing insured value.
+
+- **Aviation & Polar Routes**  
+  During solar proton events and strong geomagnetic storms, airlines reroute polar flights, incurring extra fuel and crew costs. Radiation exposure considerations for crews and passengers also factor into insurance.
+
+- **Oil, Gas & Pipeline Infrastructure**  
+  GIC can interfere with pipeline integrity monitoring systems and SCADA networks.
+
+**Historical / Scenario Benchmarks (public literature)**
+- 1989 Quebec G5 storm: ~6 million customers without power for hours to days.
+- 1859 Carrington Event (extreme benchmark): Modern repeat scenarios frequently cited by insurers and Lloyd’s reports with potential insured losses in the **$100B – low trillions** range depending on severity and duration.
+
+*This report is an educational synthesis of public scientific and industry sources (NOAA, NASA, USGS, National Academies, Lloyd’s reports). It is not actuarial advice or a catastrophe model output. For underwriting or risk transfer decisions, consult qualified catastrophe modelers and current scientific literature.*
+""")
+
+    st.sidebar.info("Data auto-refreshes every 30 min | USGS – NOAA (NHC/SWPC) – JTWC – NASA/JPL")
+
+# Footer note
+st.caption("Enhanced with Space Hazards & USA Insurance view • Open data only • Not for operational decision-making without professional validation")
