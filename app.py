@@ -9,8 +9,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 st.set_page_config(
-    page_title="Multi-Hazard Monitor – Earthquakes, Cyclones, Space & Insurance",
-    page_icon="⚠️",
+    page_title="Physical Hazard Risk Tool | Market Factor Stress Testing",
+    page_icon="📈",
     layout="wide"
 )
 
@@ -220,300 +220,121 @@ def fetch_nfip_claims_state_summary(years_back=6):
         return pd.DataFrame()
 
 # ----------------------------------------------------------------------
-# UI
+# RESTRUCTURED UI — Financial Tool First
+# Physical hazard modules moved to left sidebar
 # ----------------------------------------------------------------------
-st.title("Multi-Hazard Monitor – Earthquakes, Cyclones, Space & Insurance")
-st.markdown("Real-time data from **USGS**, **NOAA NHC**, **JTWC**, **NOAA SWPC**, **NASA/JPL CNEOS** & **FEMA OpenFEMA**")
+st.title("Physical Hazard Risk Tool")
+st.markdown("**Market Factor Stress Testing + Physical Hazard Context**")
 
-tab_eq, tab_tc, tab_space, tab_ins = st.tabs(["Earthquakes", "Tropical Cyclones", "Space Hazards (USA)", "Insurance Analytics (US)"])
-
-# Single sidebar status container so we can update it per tab without duplication
-sidebar_status = st.sidebar.empty()
-sidebar_status.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC – NASA/JPL – FEMA OpenFEMA")
-
-# --- Earthquakes ---
-with tab_eq:
-    sidebar_status.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC")
-    min_mag = st.slider(
-        "Minimum Magnitude",
-        min_value=0.0,
-        max_value=10.0,
-        value=1.0,
-        step=0.5,
-        key="eq_min_mag",
-        help="Filter earthquakes by magnitude. Lower values show more (smaller) events."
+# Left sidebar — Physical Hazard modules (now secondary)
+with st.sidebar:
+    st.header("Physical Hazard Modules")
+    st.caption("Supporting data for exposure & context")
+    
+    phys_choice = st.radio(
+        "Select module",
+        options=[
+            "Earthquakes",
+            "Tropical Cyclones", 
+            "Space Hazards (USA)",
+            "NFIP Insurance Analytics"
+        ],
+        index=0
     )
-    df = fetch_earthquakes_month()
-    if not df.empty:
-        df = df[df["magnitude"] >= min_mag]
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            fig = px.scatter_mapbox(df, lat="lat", lon="lon", size="severity", color="magnitude",
-                                    color_continuous_scale="Reds", hover_name="name",
-                                    hover_data=["location", "depth_km", "impact", "tsunami"],
-                                    zoom=1, height=560)
-            fig.update_layout(mapbox_style="open-street-map")
-            st.plotly_chart(fig, use_container_width=True)
-        with col2:
-            st.subheader("Recent Events")
-            for _, r in df.head(12).iterrows():
-                st.markdown(f"**{r['name']}** – {r['location']}")
-                st.caption(f"Depth: {r['depth_km']:.1f} km | Felt: {r['impact']} | Tsunami: {'Yes' if r['tsunami'] else 'No'}")
-                st.markdown(f"[USGS Detail]({r['detail_url']})")
-                st.divider()
-    else:
-        st.info("No earthquake data.")
-
-# --- Cyclones ---
-with tab_tc:
-    sidebar_status.info("Data auto-refreshes every 30 min | USGS – NOAA – JTWC")
-    min_wind = st.slider(
-        "Minimum Wind Intensity",
-        min_value=0.0,
-        max_value=10.0,
-        value=0.0,  # Default to 0 so all cyclones are shown by default
-        step=0.5,
-        key="tc_min_wind",
-        help="Filter tropical cyclones by estimated intensity (higher = stronger storms). 0 = show all."
-    )
-    df = fetch_cyclones_month()
-    if not df.empty:
-        df = df[df["magnitude"] >= min_wind]
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            fig = px.scatter_mapbox(df, lat="lat", lon="lon", size="magnitude", color="severity",
-                                    color_continuous_scale="Blues", hover_name="name",
-                                    hover_data=["basin", "category", "max_wind_kts", "impact"],
-                                    zoom=1, height=560)
-            fig.update_layout(mapbox_style="open-street-map")
-            st.plotly_chart(fig, use_container_width=True)
-        with col2:
-            st.subheader("Active / Recent Storms")
-            for _, r in df.iterrows():
-                st.markdown(f"**{r['name']}** – {r['basin']}")
-                st.caption(f"Cat {r['category']} | {r['max_wind_kts']} kts | {r['impact']}")
-                st.markdown(f"[Forecast]({r['article_link']})")
-                st.divider()
-    else:
-        st.info("""
-        **No active tropical cyclones at this time.**
-
-        According to the latest NOAA National Hurricane Center outlook, there are currently no tropical cyclones in the Atlantic basin.
-
-        This is normal during quieter periods. The official Atlantic hurricane season runs from **June 1 to November 30**, with peak activity typically occurring between mid-August and mid-October.
-
-        The dashboard will automatically show active storms as soon as they appear in the official advisories.
-        """)
-
-# --- Space Hazards & USA Insurance Report ---
-with tab_space:
-    sidebar_status.info("Space weather & NEO data • NOAA SWPC + NASA/JPL CNEOS")
-    st.markdown("**Space Weather & Near-Earth Objects** — focused insurance risk view for the United States")
-    st.caption("Live geomagnetic activity (NOAA SWPC) + upcoming close approaches (NASA/JPL CNEOS).")
-
-    st.markdown("""
-    **Business Context**
-    - **High Kp / G4–G5 periods**: Increased risk of Geomagnetically Induced Currents (GIC) affecting power utilities → potential claims on property, business interruption, and contingent BI policies.
-    - **Satellite operators**: Elevated solar activity increases drag and charging risk for large LEO constellations (Starlink, etc.) — directly relevant to space insurance and parametric products.
-    - **NEO close approaches**: While impact probability is low, they inform tail-risk modeling and regulatory stress scenarios used by large insurers and reinsurers.
-    """)
-
-    kp_df = fetch_kp_index()
-
-    # SAFE DEFAULTS - prevents NameError when Kp fetch fails
-    kp_val = None
-    g_level = "Unknown"
-    g_desc = "#7f8c8d"
-    risk_note = "Unknown"
-
-    if not kp_df.empty:
-        latest = kp_df.iloc[0]
-        kp_val = float(latest["kp"])
-
-        if kp_val >= 9.0:
-            g_level, g_desc = "G5 Extreme", "#c0392b"
-        elif kp_val >= 8.0:
-            g_level, g_desc = "G4 Severe", "#e67e22"
-        elif kp_val >= 7.0:
-            g_level, g_desc = "G3 Strong", "#f39c12"
-        elif kp_val >= 6.0:
-            g_level, g_desc = "G2 Moderate", "#f1c40f"
-        elif kp_val >= 5.0:
-            g_level, g_desc = "G1 Minor", "#27ae60"
-        else:
-            g_level, g_desc = "Quiet (G0)", "#7f8c8d"
-
-        kcol1, kcol2, kcol3 = st.columns([1, 1, 1.2])
-        with kcol1:
-            st.metric(label="Latest Planetary Kp", value=f"{kp_val:.2f}")
-        with kcol2:
-            st.metric(label="Observation Time (UTC)", value=str(latest["time_utc"])[:19])
-        with kcol3:
-            st.markdown(f"**Geomagnetic Storm Level**: <span style='color:{g_desc};font-weight:700'>{g_level}</span>", unsafe_allow_html=True)
-
-        trend = kp_df.head(40).sort_values("time_utc")
-        fig_kp = px.line(trend, x="time_utc", y="kp", title="Kp Index Trend (recent)", markers=True, height=260)
-        fig_kp.update_yaxes(range=[0, 9.5], title="Kp")
-        fig_kp.update_traces(line_color="#e74c3c")
-        st.plotly_chart(fig_kp, use_container_width=True)
-    else:
-        st.warning("Could not load live Kp index data.")
-
+    
     st.divider()
+    st.markdown("**Main Tool**")
+    st.info("Market Factor Stress Testing\n(Pure Market)")
 
-    neo_df = fetch_close_approaches()
-    neo_col, ins_col = st.columns([1.05, 1.15])
+# Main content area starts with Market Factor Stress Testing (primary focus)
+st.header("Market Factor Stress Testing — Pure Market")
+st.markdown("""
+**Focus**: Pure market factor model + stress scenarios using open data.
 
-    with neo_col:
-        st.subheader("☄️ Upcoming Close Approaches")
-
-        st.markdown("""
-        **Next 60 days** — Predicted close passes of near-Earth objects tracked by NASA.
-        
-        **Why this matters for insurance/risk**: Even non-impacting objects can be relevant for satellite operators, aviation, and long-term planetary defense studies.
-        
-        **Filters**: Only showing objects with absolute magnitude **H < 28** (roughly >10–20 meters) **or** passing within **6 Lunar Distances** (~2.3 million km).
-        """)
-
-        st.caption("H = Absolute magnitude (lower = larger/brighter object) • LD = Lunar Distance (1 LD ≈ 384,400 km)")
-
-        if not neo_df.empty:
-            for _, r in neo_df.head(9).iterrows():
-                nm = str(r.get("name", r.get("des", "Object")))[:42]
-                d_ld = float(r.get("dist_ld", 0))
-                hh = float(r.get("h", 99))
-                dt = str(r.get("close_date", ""))[:10]
-                size = "tiny" if hh > 27 else ("small" if hh > 24 else ("medium" if hh > 20 else "large"))
-                st.markdown(f"**{nm}**")
-                st.caption(f"{dt} • ~{d_ld:.2f} LD • H={hh:.1f} ({size}) • {float(r.get('v_inf', 0)):.0f} km/s")
-                st.divider()
-            st.caption("Source: NASA/JPL CNEOS Close Approach Database (CAD) — official planetary defense data")
-        else:
-            st.info("""
-            **No objects currently meet the size or proximity thresholds in the next 60 days.**
-
-            This is normal. The vast majority of tracked near-Earth objects are either very small (often just a few meters) or will pass at much safer distances. Large or very close approaches are relatively rare.
-
-            You can explore the full unfiltered catalog anytime at the official  
-            [NASA CNEOS Close Approach Table](https://cneos.jpl.nasa.gov/ca/).
-            """)
-
-    with ins_col:
-        st.subheader("🇺🇸 USA Insurance Exposure Report")
-
-        if kp_val is not None:
-            risk_note = "Low" if kp_val < 5 else ("Elevated" if kp_val < 7 else "High")
-            st.markdown(f"**Current space weather risk for USA infrastructure**: **{risk_note}** (Kp {kp_val:.1f} / {g_level})")
-        else:
-            st.markdown("**Current space weather risk for USA infrastructure**: **Data temporarily unavailable**")
-
-        st.markdown("""
-**Key Exposed Sectors (United States)**
-
-- **Electric Power Transmission & Distribution**  
-  High-latitude and northeastern states are most vulnerable to Geomagnetically Induced Currents (GIC).
-
-- **Satellite Operators & Space Assets**  
-  The U.S. commercial satellite fleet numbers in the thousands.
-
-- **Aviation & Polar Routes**
-
-- **Oil, Gas & Pipeline Infrastructure**
-
-**Historical Benchmarks**
-- 1989 Quebec G5 storm
-- 1859 Carrington Event (extreme benchmark)
-
-*Educational synthesis only — not actuarial advice.*
+Physical hazard modules are available on the **left sidebar** for context when building hybrid scenarios later.
 """)
 
-# --- Insurance Analytics (US) ---
-with tab_ins:
-    sidebar_status.empty()   # No special sidebar message for this tab
-    st.subheader("US Insurance & Disaster Economics")
+# ============================================================
+# PURE MARKET FACTOR STRESS TESTING (MVP)
+# ============================================================
 
+st.subheader("Factor Shock Simulator")
+
+with st.expander("How this works (Factor Model Basics)", expanded=False):
     st.markdown("""
-    **Translating natural hazard events into real financial impact using public U.S. government data.**
-
-    This tab shows how **climate and geophysical events** translate into **insured losses** at the state level, using the best large-scale public dataset available: FEMA's National Flood Insurance Program (NFIP) claims.
-
-    **Why this matters**
-    - Insurers use claims data to validate catastrophe models and set reserves.
-    - Banks and investors assess physical risk in mortgage and real estate portfolios.
-    - Regulators monitor systemic exposure (e.g., concentration of losses in Florida, Texas, Louisiana).
-    - Climate scientists use loss data to ground-truth vulnerability functions.
-
-    **Key Business Questions This Dashboard Helps Answer**
-    - Which states show the highest recent flood loss development (useful for reinsurance pricing and accumulation control)?
-    - Are we seeing unusual claims activity in states that just received major FEMA declarations?
-    - How concentrated are recent NFIP losses compared to our own portfolio exposure by state?
-    - Which states have both high recent declarations **and** high claims payouts (potential early warning for emerging hotspots)?
-    - How do current loss trends compare to the multi-year baseline (important for IBNR and reserve setting)?
+    - We use a simplified multi-factor framework (inspired by Fama-French + macro factors).
+    - You shock the factors → we propagate the shocks through a covariance matrix.
+    - Result: Stressed portfolio volatility / VaR impact.
     """)
 
-    st.caption("Powered by FEMA OpenFEMA (NFIP Redacted Claims + Disaster Declarations) — the largest public U.S. insured loss dataset.")
+col1, col2 = st.columns(2)
 
-    claims = fetch_nfip_claims_state_summary(years_back=6)
-    decls = fetch_fema_disaster_declarations(years_back=6)
+with col1:
+    st.markdown("**Factor Shocks (%)**")
+    mkt_shock = st.slider("Market (Mkt-RF)", -50, 30, -20, 5)
+    smb_shock = st.slider("Size (SMB)", -30, 30, 5, 5)
+    hml_shock = st.slider("Value (HML)", -30, 30, -10, 5)
+    rmw_shock = st.slider("Profitability (RMW)", -20, 20, 0, 5)
+    cma_shock = st.slider("Investment (CMA)", -20, 20, 0, 5)
+    vix_shock = st.slider("Volatility (VIX proxy)", -30, 80, 30, 5)
 
-    kpi1, kpi2, kpi3 = st.columns(3)
-    if not claims.empty:
-        total_paid_b = claims["total_paid"].sum() / 1_000_000_000
-        total_claims = int(claims["claims_count"].sum())
-        top_state = claims.groupby("state")["total_paid_millions"].sum().idxmax()
-        with kpi1: st.metric("NFIP Paid (last 6 yrs)", f"${total_paid_b:.2f} B")
-        with kpi2: st.metric("Total NFIP Claims Records", f"{total_claims:,}")
-        with kpi3: st.metric("Highest Payout State", top_state)
-    else:
-        st.warning("NFIP claims data temporarily unavailable.")
+with col2:
+    st.markdown("**Portfolio Factor Loadings (Betas)**")
+    b_mkt = st.number_input("Market Beta", value=1.0, step=0.1)
+    b_smb = st.number_input("Size Beta", value=0.3, step=0.1)
+    b_hml = st.number_input("Value Beta", value=-0.2, step=0.1)
+    b_rmw = st.number_input("Profitability Beta", value=0.1, step=0.1)
+    b_cma = st.number_input("Investment Beta", value=-0.1, step=0.1)
+    b_vix = st.number_input("Vol Beta", value=0.4, step=0.1)
 
-    st.divider()
+# Simple stress calculation (toy model for now)
+st.subheader("Stressed Impact (Illustrative)")
 
-    if not claims.empty:
-        state_totals = claims.groupby("state").agg(
-            total_paid_m=("total_paid_millions", "sum"),
-            claim_count=("claims_count", "sum")
-        ).reset_index().sort_values("total_paid_m", ascending=False)
+factor_shocks = [mkt_shock, smb_shock, hml_shock, rmw_shock, cma_shock, vix_shock]
+betas = [b_mkt, b_smb, b_hml, b_rmw, b_cma, b_vix]
 
-        map_col, bar_col = st.columns([1.35, 1])
-        with map_col:
-            st.subheader("NFIP Claims Paid by State")
-            fig_map = px.choropleth(state_totals, locations="state", locationmode="USA-states",
-                                    color="total_paid_m", color_continuous_scale="Reds", scope="usa",
-                                    title="Total NFIP Paid (millions USD) – Last 6 Years", height=420)
-            st.plotly_chart(fig_map, use_container_width=True)
+# Very simplified "expected return impact" and volatility increase
+expected_impact = sum([b * s for b, s in zip(betas, factor_shocks)])
 
-        with bar_col:
-            st.subheader("Top 12 States by NFIP Payouts")
-            top12 = state_totals.head(12)
-            fig_bar = px.bar(top12, x="total_paid_m", y="state", orientation="h",
-                             color="total_paid_m", color_continuous_scale="Reds", height=420)
-            st.plotly_chart(fig_bar, use_container_width=True)
+st.metric("Approximate Portfolio Return Impact", f"{expected_impact:.1f}%", 
+          delta=f"{expected_impact - 0:.1f}% vs base")
 
-        st.subheader("State × Year NFIP Summary (sample)")
-        st.dataframe(claims.sort_values(["yearOfLoss", "total_paid_millions"], ascending=[False, False]).head(20),
-                     use_container_width=True, hide_index=True)
+st.caption("Note: This is a simplified illustration. Full version will include a proper covariance matrix and VaR calculation.")
 
-    # Methodology note for better UX and transparency
-    with st.expander("Methodology, Data Sources & Limitations"):
-        st.markdown("""
-        **Data Sources**
-        - **FEMA OpenFEMA – FimaNfipClaims**: Redacted individual flood insurance claims (one of the few large public loss datasets in the U.S.).
-        - **FEMA OpenFEMA – DisasterDeclarationsSummaries**: Official presidential disaster declarations with incident types and dates.
+st.info("Next iteration will include: real Fama-French data, full covariance matrix, multiple stress scenarios, and portfolio upload.")
 
-        **What the numbers represent**
-        - `total_paid` = Sum of building + contents + Increased Cost of Compliance (ICC) payments on claims.
-        - Data is **gross paid amounts** before any recoveries or reinsurance.
+# ============================================================
+# RENDER PHYSICAL MODULES (based on left sidebar selection)
+# ============================================================
 
-        **Important Limitations (please read)**
-        - NFIP only covers **flood** damage. Wind, hail, wildfire, and earthquake losses are **not** included.
-        - Not all properties in flood zones carry NFIP policies (take-up rates vary significantly by state).
-        - Claims can be filed years after the event (development lag).
-        - Data is redacted for privacy — individual addresses and policy details are removed.
+if phys_choice == "Earthquakes":
+    with st.expander("🌍 Earthquakes (USGS) - Last 30 Days", expanded=True):
+        min_mag = st.slider("Minimum Magnitude", 0.0, 10.0, 1.0, 0.5, key="phys_eq")
+        df = fetch_earthquakes_month()
+        if not df.empty:
+            df = df[df["magnitude"] >= min_mag]
+            st.dataframe(df.head(15), use_container_width=True)
+        else:
+            st.info("No earthquake data available.")
 
-        This view is intended as a **high-level indicator** of state-level flood loss patterns, not as a substitute for commercial catastrophe models used by insurers.
+elif phys_choice == "Tropical Cyclones":
+    with st.expander("🌀 Tropical Cyclones (NOAA / JTWC)", expanded=True):
+        df = fetch_cyclones_month()
+        if not df.empty:
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("No active cyclones (off-season).")
 
-        **Recommended next steps for serious analysis**: Combine with commercial CAT models, internal exposure data, and vulnerability curves.
-        """)
+elif phys_choice == "Space Hazards (USA)":
+    with st.expander("☄️ Space Hazards (USA) - Kp + NEOs", expanded=True):
+        st.markdown("See the original Space Hazards tab logic (Kp + Close Approaches). Full rendering can be restored here.")
 
-st.caption("Multi-Hazard Monitor • Open data only • Educational use")
+elif phys_choice == "NFIP Insurance Analytics":
+    with st.expander("🇺🇸 NFIP Insurance Analytics (FEMA)", expanded=True):
+        claims = fetch_nfip_claims_state_summary(years_back=5)
+        if not claims.empty:
+            st.dataframe(claims.head(20), use_container_width=True)
+        else:
+            st.warning("NFIP data temporarily unavailable in this view.")
+
+st.caption("Physical Hazard Risk Tool • Market Factor Stress Testing + Physical Context • Open Data")
